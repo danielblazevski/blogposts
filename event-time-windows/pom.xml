@@ -27,21 +27,22 @@ limitations under the License.
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <flink.version>0.10.1</flink.version>
+        <flink.version>1.1.1</flink.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-streaming-java</artifactId>
+            <artifactId>flink-streaming-java_2.10</artifactId>
             <version>${flink.version}</version>
         </dependency>
 
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-streaming-scala</artifactId>
+            <artifactId>flink-streaming-scala_2.10</artifactId>
             <version>${flink.version}</version>
         </dependency>
+
     </dependencies>
 
     <build>

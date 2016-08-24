@@ -26,12 +26,17 @@ import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.streaming.api.windowing.triggers.ProcessingTimeTrigger;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
+import org.apache.flink.api.common.functions.FoldFunction;
+import org.apache.flink.api.common.functions.ReduceFunction;
+import sun.management.Sensor;
+import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
  * Main class of the sample application.
  * This class constructs and runs the data stream program.
  */
-public class Application {
+public class FoldReduceWindow {
 
     /**
      * Main entry point.
@@ -46,61 +51,68 @@ public class Application {
         env.setParallelism(4);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-
         // create a stream of sensor readings, assign timestamps, and create watermarks
         DataStream<SensorReading> readings = env
                 .addSource(new SampleDataGenerator())
                 .assignTimestamps(new ReadingsTimestampAssigner());
 
-        // path (1) - low latency event-at a time filter
+        // Example of Fold + Window function
         readings
-                .filter(reading -> reading.reading() > 100.0)
-                .map( reading -> "-- ALERT -- Reading above threshold: " + reading )
-                .print();
-
-        // path (2) - processing time windows: Compute max readings per sensor group
-
-        // because the default stream time is set to Event Time, we override the trigger with a
-        // processing time trigger
-
-        readings
-                .keyBy( reading -> reading.sensorGroup() )
-                .window(TumblingTimeWindows.of(Time.seconds(5)))
-                .trigger(ProcessingTimeTrigger.create())
-                .fold(new Statistic(), (curr, next) ->
-                        new Statistic(next.sensorGroup(), next.timestamp(), Math.max(curr.value(), next.reading())))
-
-                .map(stat -> "PROC TIME - max for " + stat)
-                .print();
-
-        // path (3) - event time windows: Compute average reading over sensors per minute
-
-        // we use a WindowFunction here, to illustrate how to get access to the window object
-        // that contains bounds, etc.
-        // Pre-aggregation is possible by adding a pre-aggregator ReduceFunction
-
-        readings
-                // group by, window and aggregate
                 .keyBy(reading -> reading.sensorId() )
                 .timeWindow(Time.minutes(1), Time.seconds(10))
-                .apply(new WindowFunction<SensorReading, Statistic, String, TimeWindow>() {
-
-                    @Override
-                    public void apply(String id, TimeWindow window, Iterable<SensorReading> values, Collector<Statistic> out) {
-                        int count = 0;
-                        double agg = 0.0;
-                        for (SensorReading r : values) {
-                            agg += r.reading();
-                            count++;
-                        }
-                        out.collect(new Statistic(id, window.getStart(), agg / count));
-                    }
-                })
-
-                .map(stat -> "EVENT TIME - avg for " + stat)
+                .apply(new Tuple3<String, Long, Integer>("",0L, 0), new MyFoldFunction(),
+                        new MyWindowFunction())
                 .print();
 
         env.execute("Event time example");
+
+        // Example of Reduce + Window function
+        readings
+                .keyBy(reading -> reading.sensorId() )
+                .timeWindow(Time.minutes(1), Time.seconds(10))
+                .apply(new MyReduceFunction(), new MyOtherWindowFunction())
+                .print();
+
+    }
+
+    private static class MyFoldFunction implements FoldFunction<SensorReading,
+            Tuple3<String, Long, Integer> > {
+
+        public Tuple3<String, Long, Integer> fold(Tuple3<String, Long, Integer> acc, SensorReading s) {
+            Integer cur = acc.getField(2);
+            acc.setField(2, cur + 1);
+            return acc;
+        }
+    }
+
+    private static class MyWindowFunction implements WindowFunction<Tuple3<String, Long, Integer>,
+            Tuple3<String, Long, Integer>, String, TimeWindow> {
+        public void apply(String s,
+                          TimeWindow window,
+                          Iterable<Tuple3<String, Long, Integer>> counts,
+                          Collector<Tuple3<String, Long, Integer>> out) {
+            Integer count = counts.iterator().next().getField(2);
+            out.collect(new Tuple3<String, Long, Integer>(s, window.getEnd(),count));
+        }
+    }
+
+    private static class MyReduceFunction implements ReduceFunction<SensorReading> {
+
+        public SensorReading reduce(SensorReading reading1, SensorReading reading2) {
+
+            return reading1.reading() > reading2.reading() ? reading2 : reading1;
+        }
+    }
+
+    private static class MyOtherWindowFunction implements WindowFunction<SensorReading,
+            Tuple2<Long, SensorReading>, String, TimeWindow> {
+        public void apply(String s,
+                          TimeWindow window,
+                          Iterable<SensorReading> minReadings,
+                          Collector<Tuple2<Long, SensorReading>> out) {
+            SensorReading min = minReadings.iterator().next();
+            out.collect(new Tuple2<Long, SensorReading>(window.getStart(),min));
+        }
     }
 
     private static class ReadingsTimestampAssigner implements TimestampExtractor<SensorReading> {

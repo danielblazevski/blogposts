@@ -82,3 +82,4 @@ class SampleDataGenerator extends RichParallelSourceFunction[SensorReading] {
     running = false
   }
 }
+
