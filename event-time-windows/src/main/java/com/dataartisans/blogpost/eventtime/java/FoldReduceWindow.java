@@ -21,9 +21,7 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.TimestampExtractor;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingTimeWindows;
 import org.apache.flink.streaming.api.windowing.time.Time;
-import org.apache.flink.streaming.api.windowing.triggers.ProcessingTimeTrigger;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 import org.apache.flink.api.common.functions.FoldFunction;
@@ -33,9 +31,11 @@ import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.api.java.tuple.Tuple2;
 
 /**
- * Main class of the sample application.
- * This class constructs and runs the data stream program.
- */
+ * Modified example of Application.java that shows how to 
+ * (1) combine a FoldFunction and WindowFunction 
+ * (2) combine a ReduceFunction and WindowFunction
+ * 
+ */  
 public class FoldReduceWindow {
 
     /**
